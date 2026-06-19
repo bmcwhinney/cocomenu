@@ -328,29 +328,6 @@
             dispatchSelectChange(select);
         }
 
-        function bootTranslation(lang) {
-            if (lang === 'en') {
-                return;
-            }
-
-            setGoogTransCookie(lang);
-            updateLanguageUI(lang);
-
-            const delays = isMobile() ? [0, 400, 900, 1800, 3000, 5000] : [0, 500, 1500];
-            delays.forEach(function (delay, index) {
-                setTimeout(function () {
-                    triggerGoogleTranslate(lang, { force: index > 0 });
-                }, delay);
-            });
-
-            ['portals-menu', 'palma-menu'].forEach(function (menuName) {
-                waitForElfsight(menuName, function () {
-                    translatedTabs.add(menuName);
-                    triggerGoogleTranslate(lang, { force: true });
-                });
-            });
-        }
-
         function waitForElfsight(menuName, callback, attempt) {
             attempt = attempt || 0;
             const maxAttempts = isMobile() ? 40 : 24;
@@ -401,8 +378,20 @@
                 return;
             }
 
+            updateLanguageUI(lang);
             translatedTabs.clear();
-            bootTranslation(lang);
+            applyTranslation(lang);
+        }
+
+        function applyTranslation(lang) {
+            triggerGoogleTranslate(lang);
+
+            ['portals-menu', 'palma-menu'].forEach(function (menuName) {
+                waitForElfsight(menuName, function () {
+                    translatedTabs.add(menuName);
+                    triggerGoogleTranslate(lang, { force: true });
+                });
+            });
         }
 
         document.addEventListener('DOMContentLoaded', function () {
@@ -444,23 +433,16 @@
         function googleTranslateElementInit() {
             new google.translate.TranslateElement({
                 pageLanguage: 'en',
-                includedLanguages: 'en,es',
-                autoDisplay: false,
-                layout: google.translate.TranslateElement.InlineLayout.SIMPLE
+                includedLanguages: 'en,es'
             }, 'google_translate_element');
 
             const savedLang = getSavedLang();
             if (savedLang !== 'en') {
-                bootTranslation(savedLang);
+                applyTranslation(savedLang);
             }
         }
-
-        (function loadGoogleTranslate() {
-            const script = document.createElement('script');
-            script.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
-            document.body.appendChild(script);
-        })();
     </script>
+    <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 
 </body>
 </html>
