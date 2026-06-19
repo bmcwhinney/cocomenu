@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurant Menus | Portals & Palma</title>
+    <style>
+        /* CSS Variables - Strict Black & White */
+        :root {
+            --primary-color: #000000;
+            --hover-color: #f2f2f2;
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --white: #ffffff;
+            --border-radius: 8px;
+            --transition: all 0.3s ease;
+        }
+
+        /* Base Styles */
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px 0; /* Removed side padding on body to let container handle margins */
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        /* Expanded Desktop Container */
+        .container {
+            max-width: 1600px; /* Increased from 1200px for a much wider desktop area */
+            width: 95%; /* Ensures it fills large screens but leaves a small edge gap */
+            margin: 0 auto;
+        }
+
+        /* Language Switcher */
+        .header-controls {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 20px;
+        }
+
+        .lang-btn {
+            background: transparent;
+            border: 1px solid var(--primary-color);
+            color: var(--primary-color);
+            padding: 6px 12px;
+            margin-left: 8px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: var(--transition);
+        }
+
+        .lang-btn:hover {
+            background: var(--hover-color);
+        }
+
+        .lang-btn.active {
+            background: var(--primary-color);
+            color: var(--white);
+        }
+
+        /* Tab Buttons Navigation */
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: nowrap;
+        }
+
+        .tab-btn {
+            padding: 12px 30px;
+            cursor: pointer;
+            border: 2px solid var(--primary-color);
+            background-color: var(--white);
+            color: var(--primary-color);
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: var(--border-radius);
+            transition: var(--transition);
+        }
+
+        .tab-btn:hover, .tab-btn:focus {
+            background-color: var(--hover-color);
+            outline: none;
+        }
+
+        .tab-btn.active {
+            background-color: var(--primary-color);
+            color: var(--white);
+        }
+
+        /* Tab Content Areas */
+        .tab-content {
+            display: none;
+            background: var(--white);
+            padding: 30px; /* Slightly larger inner padding for wider desktop view */
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border: 1px solid #e0e0e0;
+            animation: fadeIn 0.4s ease-in-out;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Keep Google Translate in the DOM but invisible — display:none breaks mobile Safari */
+        #google_translate_element {
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            width: 1px !important;
+            height: 1px !important;
+            overflow: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            z-index: -1 !important;
+        }
+
+        .goog-te-banner-frame {
+            display: none !important;
+        }
+
+        body {
+            top: 0 !important;
+        }
+
+        body.translated-ltr,
+        body.translated-rtl {
+            top: 0 !important;
+        }
+
+        /* =========================================
+           MOBILE OPTIMIZATION (Screens under 768px)
+           ========================================= */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px 0; 
+            }
+
+            .container {
+                width: 96%; /* slightly tighter margins on mobile */
+            }
+
+            .header-controls {
+                margin-bottom: 15px;
+            }
+
+            .lang-btn {
+                padding: 8px 16px; 
+                font-size: 15px;
+            }
+
+            .tabs {
+                gap: 10px;
+                margin-bottom: 20px;
+                width: 100%;
+            }
+
+            .tab-btn {
+                flex: 1; 
+                padding: 14px 10px; 
+                font-size: 15px;
+                text-align: center;
+                white-space: nowrap;
+                touch-action: manipulation;
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            .tabs,
+            .header-controls {
+                position: relative;
+                z-index: 10;
+            }
+
+            .tab-content {
+                padding: 10px; 
+                border-radius: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="google_translate_element" aria-hidden="true"></div>
+
+    <div class="container">
+        
+        <!-- Language Switcher -->
+        <div class="header-controls notranslate">
+            <button class="lang-btn active" onclick="setLanguage('en')" id="btn-en" aria-label="Switch to English">EN</button>
+            <button class="lang-btn" onclick="setLanguage('es')" id="btn-es" aria-label="Cambiar a Español">ES</button>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="tabs notranslate" role="tablist" aria-label="Restaurant Locations">
+            <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="portals-menu" onclick="openTab(event, 'portals-menu')">
+                <span data-en="Portals Menu" data-es="Menú Portals">Portals Menu</span>
+            </button>
+            <button class="tab-btn" role="tab" aria-selected="false" aria-controls="palma-menu" onclick="openTab(event, 'palma-menu')">
+                <span data-en="Palma Menu" data-es="Menú Palma">Palma Menu</span>
+            </button>
+        </div>
+
+        <!-- Portals Menu Content -->
+        <div id="portals-menu" class="tab-content active" role="tabpanel" tabindex="0">
+            <!-- Elfsight Restaurant Menu | COCOS PORTALS MENU -->
+            <div class="elfsight-app-f7cd54b3-0765-4f0b-b4b5-ed22156cba84"></div>
+        </div>
+
+        <!-- Palma Menu Content -->
+        <div id="palma-menu" class="tab-content" role="tabpanel" tabindex="0">
+            <!-- Elfsight Restaurant Menu | Palma Menu -->
+            <div class="elfsight-app-b45113e7-39aa-462e-b7e0-3980ee0560d7"></div>
+        </div>
+
+    </div>
+
+    <!-- Elfsight Platform Script (Loaded async for performance) -->
+    <script src="https://elfsightcdn.com/platform.js" async></script>
+
+    <!-- UI Logic -->
+    <script>
+        const LANG_STORAGE_KEY = 'cocos-menu-lang';
+        const translatedTabs = new Set();
+
+        function isMobile() {
+            return window.matchMedia('(max-width: 768px)').matches ||
+                /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        }
+
+        function dispatchSelectChange(select) {
+            if (typeof select.onchange === 'function') {
+                select.onchange();
+            }
+
+            if (typeof Event === 'function') {
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+            } else {
+                const evt = document.createEvent('HTMLEvents');
+                evt.initEvent('change', true, false);
+                select.dispatchEvent(evt);
+            }
+        }
+
+        function openTab(evt, menuName) {
+            const tabContents = document.querySelectorAll(".tab-content");
+            tabContents.forEach(content => {
+                content.classList.remove("active");
+            });
+
+            const tabButtons = document.querySelectorAll(".tab-btn");
+            tabButtons.forEach(button => {
+                button.classList.remove("active");
+                button.setAttribute("aria-selected", "false");
+            });
+
+            document.getElementById(menuName).classList.add("active");
+
+            const tabBtn = evt.currentTarget || (evt.target && evt.target.closest('.tab-btn'));
+            if (tabBtn) {
+                tabBtn.classList.add("active");
+                tabBtn.setAttribute("aria-selected", "true");
+            }
+
+            requestAnimationFrame(function () {
+                window.dispatchEvent(new Event('resize'));
+            });
+
+            const lang = getSavedLang();
+            if (lang !== 'en' && !translatedTabs.has(menuName)) {
+                waitForElfsight(menuName, function () {
+                    translatedTabs.add(menuName);
+                    triggerGoogleTranslate(lang, { force: true });
+                });
+            }
+        }
+
+        function getTranslateSelect() {
+            return document.querySelector('#google_translate_element .goog-te-combo') ||
+                document.querySelector('.goog-te-combo');
+        }
+
+        function setGoogTransCookie(lang) {
+            const value = lang === 'en' ? '/en/en' : '/en/' + lang;
+            const hostname = window.location.hostname;
+            const expiry = 'expires=' + new Date(Date.now() + 365 * 864e5).toUTCString();
+
+            document.cookie = 'googtrans=;' + expiry + ';path=/';
+            document.cookie = 'googtrans=' + value + ';' + expiry + ';path=/';
+
+            if (hostname && hostname.indexOf('.') !== -1 && hostname !== 'localhost') {
+                document.cookie = 'googtrans=' + value + ';' + expiry + ';path=/;domain=' + hostname;
+                document.cookie = 'googtrans=' + value + ';' + expiry + ';path=/;domain=.' + hostname;
+            }
+        }
+
+        function triggerGoogleTranslate(lang, options) {
+            options = options || {};
+            const attempt = options.attempt || 0;
+            const force = options.force || false;
+            const select = getTranslateSelect();
+
+            if (!select) {
+                const maxAttempts = isMobile() ? 80 : 40;
+                if (attempt < maxAttempts) {
+                    setTimeout(function () {
+                        triggerGoogleTranslate(lang, { attempt: attempt + 1, force: force });
+                    }, 250);
+                }
+                return;
+            }
+
+            const targetValue = lang === 'en' ? '' : lang;
+            if (!force && select.value === targetValue) {
+                return;
+            }
+
+            select.value = targetValue;
+            dispatchSelectChange(select);
+        }
+
+        function bootTranslation(lang) {
+            if (lang === 'en') {
+                return;
+            }
+
+            setGoogTransCookie(lang);
+            updateLanguageUI(lang);
+
+            const delays = isMobile() ? [0, 400, 900, 1800, 3000, 5000] : [0, 500, 1500];
+            delays.forEach(function (delay, index) {
+                setTimeout(function () {
+                    triggerGoogleTranslate(lang, { force: index > 0 });
+                }, delay);
+            });
+
+            ['portals-menu', 'palma-menu'].forEach(function (menuName) {
+                waitForElfsight(menuName, function () {
+                    translatedTabs.add(menuName);
+                    triggerGoogleTranslate(lang, { force: true });
+                });
+            });
+        }
+
+        function waitForElfsight(menuName, callback, attempt) {
+            attempt = attempt || 0;
+            const maxAttempts = isMobile() ? 40 : 24;
+            const widget = document.getElementById(menuName).querySelector('[class*="elfsight-app-"]');
+            const ready = widget && (
+                widget.children.length > 0 ||
+                widget.querySelector('iframe') ||
+                widget.shadowRoot
+            );
+
+            if (ready) {
+                callback();
+                return;
+            }
+
+            if (attempt < maxAttempts) {
+                setTimeout(function () {
+                    waitForElfsight(menuName, callback, attempt + 1);
+                }, 500);
+            }
+        }
+
+        function updateLanguageUI(lang) {
+            document.querySelectorAll('.lang-btn').forEach(function (btn) {
+                btn.classList.remove('active');
+            });
+            document.getElementById('btn-' + lang).classList.add('active');
+
+            document.querySelectorAll('[data-en][data-es]').forEach(function (elem) {
+                elem.textContent = elem.getAttribute('data-' + lang);
+            });
+
+            const titles = {
+                en: 'Restaurant Menus | Portals & Palma',
+                es: 'Menús de Restaurante | Portals y Palma'
+            };
+            document.title = titles[lang] || titles.en;
+            document.documentElement.lang = lang;
+        }
+
+        function setLanguage(lang) {
+            persistLanguage(lang);
+            setGoogTransCookie(lang);
+
+            if (lang === 'en') {
+                translatedTabs.clear();
+                window.location.reload();
+                return;
+            }
+
+            translatedTabs.clear();
+            bootTranslation(lang);
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const savedLang = getSavedLang();
+            if (savedLang !== 'en') {
+                updateLanguageUI(savedLang);
+                setGoogTransCookie(savedLang);
+            }
+        });
+
+        function getSavedLang() {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('lang') === 'es') {
+                    return 'es';
+                }
+                return localStorage.getItem(LANG_STORAGE_KEY) || 'en';
+            } catch (e) {
+                return 'en';
+            }
+        }
+
+        function persistLanguage(lang) {
+            try {
+                localStorage.setItem(LANG_STORAGE_KEY, lang);
+            } catch (e) {}
+
+            if (window.history && window.history.replaceState) {
+                const url = new URL(window.location.href);
+                if (lang === 'en') {
+                    url.searchParams.delete('lang');
+                } else {
+                    url.searchParams.set('lang', lang);
+                }
+                window.history.replaceState({}, '', url);
+            }
+        }
+
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'en',
+                includedLanguages: 'en,es',
+                autoDisplay: false,
+                layout: google.translate.TranslateElement.InlineLayout.SIMPLE
+            }, 'google_translate_element');
+
+            const savedLang = getSavedLang();
+            if (savedLang !== 'en') {
+                bootTranslation(savedLang);
+            }
+        }
+
+        (function loadGoogleTranslate() {
+            const script = document.createElement('script');
+            script.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
+            document.body.appendChild(script);
+        })();
+    </script>
+
+</body>
+</html>
