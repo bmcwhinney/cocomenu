@@ -112,47 +112,35 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Keep Google Translate widget in DOM but invisible */
+        /* Google Translate: keep widget in DOM, hide only the top banner */
         #google_translate_element {
-            position: fixed !important;
-            bottom: 0 !important;
-            left: 0 !important;
+            position: absolute !important;
+            left: -9999px !important;
+            top: auto !important;
             width: 1px !important;
             height: 1px !important;
             overflow: hidden !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-            z-index: -1 !important;
         }
 
-        /* Hide top "Translated into..." bar only — never hide the translate widget */
-        .goog-te-banner-frame,
         iframe.goog-te-banner-frame,
-        body > .skiptranslate:has(iframe.goog-te-banner-frame) {
+        .goog-te-banner-frame {
             display: none !important;
             visibility: hidden !important;
             height: 0 !important;
-            max-height: 0 !important;
+            width: 0 !important;
         }
 
-        /* Hide translate tooltips only */
         #goog-gt-tt,
         .goog-te-balloon-frame,
         .goog-tooltip {
             display: none !important;
         }
 
-        body {
+        body,
+        html.translated-ltr body,
+        html.translated-rtl body {
             top: 0 !important;
             position: static !important;
-            margin-top: 0 !important;
-        }
-
-        html.translated-ltr body,
-        html.translated-rtl body,
-        body.translated-ltr,
-        body.translated-rtl {
-            top: 0 !important;
             margin-top: 0 !important;
         }
 
@@ -247,243 +235,250 @@
 
     <!-- UI Logic -->
     <script>
-        const LANG_STORAGE_KEY = 'cocos-menu-lang';
-        const translatedTabs = new Set();
+        (function () {
+            'use strict';
 
-        function isMobile() {
-            return window.matchMedia('(max-width: 768px)').matches ||
-                /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        }
+            var LANG_KEY = 'cocos-menu-lang';
+            var MENU_IDS = ['portals-menu', 'palma-menu'];
+            var translatedMenus = new Set();
+            var bannerTimer = null;
 
-        function hideGoogleBanner() {
-            document.body.style.setProperty('top', '0', 'important');
-            document.body.style.setProperty('position', 'static', 'important');
-            document.body.style.setProperty('margin-top', '0', 'important');
+            function isMobile() {
+                return window.matchMedia('(max-width: 768px)').matches ||
+                    /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            }
 
-            document.querySelectorAll('.goog-te-banner-frame, iframe.goog-te-banner-frame').forEach(function (el) {
-                el.style.setProperty('display', 'none', 'important');
-                el.style.setProperty('visibility', 'hidden', 'important');
-                el.style.setProperty('height', '0', 'important');
-
-                const parent = el.parentElement;
-                if (parent && parent.classList.contains('skiptranslate') && parent.id !== 'google_translate_element') {
-                    parent.style.setProperty('display', 'none', 'important');
-                    parent.style.setProperty('height', '0', 'important');
+            function getLang() {
+                try {
+                    if (new URLSearchParams(window.location.search).get('lang') === 'es') {
+                        return 'es';
+                    }
+                    return localStorage.getItem(LANG_KEY) || 'en';
+                } catch (e) {
+                    return 'en';
                 }
-            });
-        }
-
-        function dispatchSelectChange(select) {
-            if (typeof select.onchange === 'function') {
-                select.onchange();
             }
 
-            if (typeof Event === 'function') {
-                select.dispatchEvent(new Event('change', { bubbles: true }));
-            } else {
-                const evt = document.createEvent('HTMLEvents');
-                evt.initEvent('change', true, false);
-                select.dispatchEvent(evt);
-            }
-        }
+            function saveLang(lang) {
+                try {
+                    localStorage.setItem(LANG_KEY, lang);
+                } catch (e) {}
 
-        function openTab(evt, menuName) {
-            const tabContents = document.querySelectorAll(".tab-content");
-            tabContents.forEach(content => {
-                content.classList.remove("active");
-            });
-
-            const tabButtons = document.querySelectorAll(".tab-btn");
-            tabButtons.forEach(button => {
-                button.classList.remove("active");
-                button.setAttribute("aria-selected", "false");
-            });
-
-            document.getElementById(menuName).classList.add("active");
-
-            const tabBtn = evt.currentTarget || (evt.target && evt.target.closest('.tab-btn'));
-            if (tabBtn) {
-                tabBtn.classList.add("active");
-                tabBtn.setAttribute("aria-selected", "true");
+                if (window.history && window.history.replaceState) {
+                    var url = new URL(window.location.href);
+                    if (lang === 'en') {
+                        url.searchParams.delete('lang');
+                    } else {
+                        url.searchParams.set('lang', lang);
+                    }
+                    window.history.replaceState({}, '', url);
+                }
             }
 
-            requestAnimationFrame(function () {
-                window.dispatchEvent(new Event('resize'));
-            });
+            function setCookie(lang) {
+                var value = lang === 'en' ? '/en/en' : '/en/' + lang;
+                var expiry = 'expires=' + new Date(Date.now() + 365 * 864e5).toUTCString();
+                var host = window.location.hostname;
 
-            const lang = getSavedLang();
-            if (lang !== 'en' && !translatedTabs.has(menuName)) {
-                waitForElfsight(menuName, function () {
-                    translatedTabs.add(menuName);
-                    triggerGoogleTranslate(lang, { force: true });
+                document.cookie = 'googtrans=;' + expiry + ';path=/';
+                document.cookie = 'googtrans=' + value + ';' + expiry + ';path=/';
+
+                if (host && host.indexOf('.') !== -1 && host !== 'localhost') {
+                    document.cookie = 'googtrans=' + value + ';' + expiry + ';path=/;domain=' + host;
+                    document.cookie = 'googtrans=' + value + ';' + expiry + ';path=/;domain=.' + host;
+                }
+            }
+
+            function getSelect() {
+                return document.querySelector('#google_translate_element .goog-te-combo') ||
+                    document.querySelector('.goog-te-combo');
+            }
+
+            function fireSelectChange(select) {
+                if (typeof select.onchange === 'function') {
+                    select.onchange();
+                }
+                try {
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
+                } catch (e) {
+                    var evt = document.createEvent('HTMLEvents');
+                    evt.initEvent('change', true, false);
+                    select.dispatchEvent(evt);
+                }
+            }
+
+            function hideBanner() {
+                document.body.style.setProperty('top', '0', 'important');
+                document.body.style.setProperty('position', 'static', 'important');
+                document.body.style.setProperty('margin-top', '0', 'important');
+
+                document.querySelectorAll('iframe.goog-te-banner-frame, .goog-te-banner-frame').forEach(function (frame) {
+                    frame.style.setProperty('display', 'none', 'important');
+                    frame.style.setProperty('visibility', 'hidden', 'important');
+                    frame.style.setProperty('height', '0', 'important');
+
+                    var wrap = frame.parentElement;
+                    var widget = document.getElementById('google_translate_element');
+                    if (wrap && wrap.classList.contains('skiptranslate') && wrap !== widget && !widget.contains(wrap)) {
+                        wrap.style.setProperty('display', 'none', 'important');
+                        wrap.style.setProperty('height', '0', 'important');
+                    }
                 });
             }
-        }
 
-        function getTranslateSelect() {
-            return document.querySelector('#google_translate_element .goog-te-combo') ||
-                document.querySelector('.goog-te-combo');
-        }
-
-        function setGoogTransCookie(lang) {
-            const value = lang === 'en' ? '/en/en' : '/en/' + lang;
-            const hostname = window.location.hostname;
-            const expiry = 'expires=' + new Date(Date.now() + 365 * 864e5).toUTCString();
-
-            document.cookie = 'googtrans=;' + expiry + ';path=/';
-            document.cookie = 'googtrans=' + value + ';' + expiry + ';path=/';
-
-            if (hostname && hostname.indexOf('.') !== -1 && hostname !== 'localhost') {
-                document.cookie = 'googtrans=' + value + ';' + expiry + ';path=/;domain=' + hostname;
-                document.cookie = 'googtrans=' + value + ';' + expiry + ';path=/;domain=.' + hostname;
-            }
-        }
-
-        function triggerGoogleTranslate(lang, options) {
-            options = options || {};
-            const attempt = options.attempt || 0;
-            const force = options.force || false;
-            const select = getTranslateSelect();
-
-            if (!select) {
-                const maxAttempts = isMobile() ? 80 : 40;
-                if (attempt < maxAttempts) {
-                    setTimeout(function () {
-                        triggerGoogleTranslate(lang, { attempt: attempt + 1, force: force });
-                    }, 250);
-                }
-                return;
+            function scheduleHideBanner() {
+                clearTimeout(bannerTimer);
+                bannerTimer = setTimeout(hideBanner, 400);
             }
 
-            const targetValue = lang === 'en' ? '' : lang;
-            if (!force && select.value === targetValue) {
-                return;
-            }
+            function translateTo(lang, options) {
+                options = options || {};
+                var attempt = options.attempt || 0;
+                var force = !!options.force;
 
-            select.value = targetValue;
-            dispatchSelectChange(select);
-            [300, 800, 1500].forEach(function (delay) {
-                setTimeout(hideGoogleBanner, delay);
-            });
-        }
-
-        function waitForElfsight(menuName, callback, attempt) {
-            attempt = attempt || 0;
-            const maxAttempts = isMobile() ? 40 : 24;
-            const widget = document.getElementById(menuName).querySelector('[class*="elfsight-app-"]');
-            const ready = widget && (
-                widget.children.length > 0 ||
-                widget.querySelector('iframe') ||
-                widget.shadowRoot
-            );
-
-            if (ready) {
-                callback();
-                return;
-            }
-
-            if (attempt < maxAttempts) {
-                setTimeout(function () {
-                    waitForElfsight(menuName, callback, attempt + 1);
-                }, 500);
-            }
-        }
-
-        function updateLanguageUI(lang) {
-            document.querySelectorAll('.lang-btn').forEach(function (btn) {
-                btn.classList.remove('active');
-            });
-            document.getElementById('btn-' + lang).classList.add('active');
-
-            document.querySelectorAll('[data-en][data-es]').forEach(function (elem) {
-                elem.textContent = elem.getAttribute('data-' + lang);
-            });
-
-            const titles = {
-                en: 'Restaurant Menus | Portals & Palma',
-                es: 'Menús de Restaurante | Portals y Palma'
-            };
-            document.title = titles[lang] || titles.en;
-            document.documentElement.lang = lang;
-        }
-
-        function setLanguage(lang) {
-            persistLanguage(lang);
-            setGoogTransCookie(lang);
-
-            if (lang === 'en') {
-                translatedTabs.clear();
-                window.location.reload();
-                return;
-            }
-
-            updateLanguageUI(lang);
-            translatedTabs.clear();
-            applyTranslation(lang);
-        }
-
-        function applyTranslation(lang) {
-            triggerGoogleTranslate(lang);
-
-            ['portals-menu', 'palma-menu'].forEach(function (menuName) {
-                waitForElfsight(menuName, function () {
-                    translatedTabs.add(menuName);
-                    triggerGoogleTranslate(lang, { force: true });
-                });
-            });
-        }
-
-        document.addEventListener('DOMContentLoaded', function () {
-            const savedLang = getSavedLang();
-            if (savedLang !== 'en') {
-                updateLanguageUI(savedLang);
-                setGoogTransCookie(savedLang);
-            }
-        });
-
-        function getSavedLang() {
-            try {
-                const params = new URLSearchParams(window.location.search);
-                if (params.get('lang') === 'es') {
-                    return 'es';
-                }
-                return localStorage.getItem(LANG_STORAGE_KEY) || 'en';
-            } catch (e) {
-                return 'en';
-            }
-        }
-
-        function persistLanguage(lang) {
-            try {
-                localStorage.setItem(LANG_STORAGE_KEY, lang);
-            } catch (e) {}
-
-            if (window.history && window.history.replaceState) {
-                const url = new URL(window.location.href);
                 if (lang === 'en') {
-                    url.searchParams.delete('lang');
-                } else {
-                    url.searchParams.set('lang', lang);
+                    return;
                 }
-                window.history.replaceState({}, '', url);
+
+                var select = getSelect();
+                if (!select) {
+                    if (attempt < 50) {
+                        setTimeout(function () {
+                            translateTo(lang, { attempt: attempt + 1, force: force });
+                        }, 200);
+                    }
+                    return;
+                }
+
+                if (!force && select.value === lang) {
+                    scheduleHideBanner();
+                    return;
+                }
+
+                select.value = lang;
+                fireSelectChange(select);
+                scheduleHideBanner();
             }
-        }
 
-        function googleTranslateElementInit() {
-            new google.translate.TranslateElement({
-                pageLanguage: 'en',
-                includedLanguages: 'en,es'
-            }, 'google_translate_element');
+            function whenMenuReady(menuId, callback, attempt) {
+                attempt = attempt || 0;
+                var max = isMobile() ? 36 : 24;
+                var panel = document.getElementById(menuId);
+                var widget = panel && panel.querySelector('[class*="elfsight-app-"]');
+                var ready = widget && (widget.children.length > 0 || widget.querySelector('iframe'));
 
-            const savedLang = getSavedLang();
-            if (savedLang !== 'en') {
-                applyTranslation(savedLang);
+                if (ready) {
+                    callback();
+                    return;
+                }
+
+                if (attempt < max) {
+                    setTimeout(function () {
+                        whenMenuReady(menuId, callback, attempt + 1);
+                    }, 500);
+                }
             }
 
-            [500, 1500, 3000].forEach(function (delay) {
-                setTimeout(hideGoogleBanner, delay);
+            function applySpanish() {
+                translateTo('es');
+
+                MENU_IDS.forEach(function (menuId) {
+                    whenMenuReady(menuId, function () {
+                        if (!translatedMenus.has(menuId)) {
+                            translatedMenus.add(menuId);
+                            translateTo('es', { force: true });
+                        }
+                    });
+                });
+            }
+
+            function updateUI(lang) {
+                document.querySelectorAll('.lang-btn').forEach(function (btn) {
+                    btn.classList.remove('active');
+                });
+                var activeBtn = document.getElementById('btn-' + lang);
+                if (activeBtn) {
+                    activeBtn.classList.add('active');
+                }
+
+                document.querySelectorAll('[data-en][data-es]').forEach(function (elem) {
+                    elem.textContent = elem.getAttribute('data-' + lang);
+                });
+
+                document.title = lang === 'es'
+                    ? 'Menús de Restaurante | Portals y Palma'
+                    : 'Restaurant Menus | Portals & Palma';
+                document.documentElement.lang = lang;
+            }
+
+            window.setLanguage = function (lang) {
+                saveLang(lang);
+                setCookie(lang);
+
+                if (lang === 'en') {
+                    translatedMenus.clear();
+                    window.location.reload();
+                    return;
+                }
+
+                if (isMobile()) {
+                    window.location.reload();
+                    return;
+                }
+
+                updateUI(lang);
+                translatedMenus.clear();
+                applySpanish();
+            };
+
+            window.openTab = function (evt, menuName) {
+                document.querySelectorAll('.tab-content').forEach(function (el) {
+                    el.classList.remove('active');
+                });
+                document.querySelectorAll('.tab-btn').forEach(function (btn) {
+                    btn.classList.remove('active');
+                    btn.setAttribute('aria-selected', 'false');
+                });
+
+                document.getElementById(menuName).classList.add('active');
+
+                var tabBtn = evt.currentTarget || (evt.target && evt.target.closest('.tab-btn'));
+                if (tabBtn) {
+                    tabBtn.classList.add('active');
+                    tabBtn.setAttribute('aria-selected', 'true');
+                }
+
+                if (getLang() !== 'en' && !translatedMenus.has(menuName)) {
+                    whenMenuReady(menuName, function () {
+                        translatedMenus.add(menuName);
+                        translateTo('es', { force: true });
+                    });
+                }
+            };
+
+            window.googleTranslateElementInit = function () {
+                new google.translate.TranslateElement({
+                    pageLanguage: 'en',
+                    includedLanguages: 'en,es'
+                }, 'google_translate_element');
+
+                if (getLang() !== 'en') {
+                    updateUI(getLang());
+                    applySpanish();
+                }
+
+                setTimeout(hideBanner, 800);
+                setTimeout(hideBanner, 2000);
+            };
+
+            document.addEventListener('DOMContentLoaded', function () {
+                var lang = getLang();
+                if (lang !== 'en') {
+                    updateUI(lang);
+                    setCookie(lang);
+                }
             });
-        }
+        })();
     </script>
     <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 
