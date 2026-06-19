@@ -53,8 +53,9 @@
         }
 
         .lang-btn.active {
-            background: var(--primary-color);
-            color: var(--white);
+            background: var(--primary-color) !important;
+            color: var(--white) !important;
+            border-color: var(--primary-color) !important;
         }
 
         .lang-btn:disabled {
@@ -74,12 +75,15 @@
             padding: 12px 30px;
             cursor: pointer;
             border: 2px solid var(--primary-color);
-            background-color: var(--white);
-            color: var(--primary-color);
+            background-color: var(--white) !important;
+            color: var(--primary-color) !important;
             font-size: 16px;
             font-weight: 600;
             border-radius: var(--border-radius);
             transition: var(--transition);
+            -webkit-appearance: none;
+            appearance: none;
+            font-family: inherit;
         }
 
         .tab-btn:hover,
@@ -89,8 +93,13 @@
         }
 
         .tab-btn.active {
-            background-color: var(--primary-color);
-            color: var(--white);
+            background-color: var(--primary-color) !important;
+            color: var(--white) !important;
+            border-color: var(--primary-color) !important;
+        }
+
+        .tab-btn.active span {
+            color: var(--white) !important;
         }
 
         .tab-content {
@@ -149,6 +158,14 @@
             box-shadow: none !important;
         }
 
+        /* Prevent Google Translate from restyling our controls */
+        .notranslate .lang-btn,
+        .notranslate .tab-btn,
+        .header-controls,
+        .tabs {
+            translate: no;
+        }
+
         @media (max-width: 768px) {
             body { padding: 10px 0; }
             .container { width: 96%; }
@@ -181,11 +198,11 @@
         </div>
 
         <div class="tabs notranslate" role="tablist" aria-label="Restaurant Locations">
-            <button class="tab-btn active" type="button" role="tab" aria-selected="true" aria-controls="portals-menu" data-tab="portals-menu">
-                <span data-en="Portals Menu" data-es="Menú Portals">Portals Menu</span>
+            <button class="tab-btn active notranslate" type="button" role="tab" aria-selected="true" aria-controls="portals-menu" data-tab="portals-menu">
+                <span class="notranslate" data-en="Portals Menu" data-es="Menú Portals">Portals Menu</span>
             </button>
-            <button class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="palma-menu" data-tab="palma-menu">
-                <span data-en="Palma Menu" data-es="Menú Palma">Palma Menu</span>
+            <button class="tab-btn notranslate" type="button" role="tab" aria-selected="false" aria-controls="palma-menu" data-tab="palma-menu">
+                <span class="notranslate" data-en="Palma Menu" data-es="Menú Palma">Palma Menu</span>
             </button>
         </div>
 
@@ -356,7 +373,11 @@
         }
 
         function runEngine() {
-            if (!state.engineReady || !state.wantsSpanish) {
+            if (!state.wantsSpanish) {
+                return;
+            }
+
+            if (!state.engineReady) {
                 return;
             }
 
@@ -376,6 +397,21 @@
             });
 
             watchMenus();
+        }
+
+        function waitForEngine(callback, attempt) {
+            attempt = attempt || 0;
+
+            if (state.engineReady) {
+                callback();
+                return;
+            }
+
+            if (attempt < 60) {
+                setTimeout(function () {
+                    waitForEngine(callback, attempt + 1);
+                }, 200);
+            }
         }
 
         function scheduleRefresh() {
@@ -524,16 +560,31 @@
             openTab(menuId);
         };
 
+        function bindTap(el, handler) {
+            var handled = false;
+
+            function run() {
+                if (handled) {
+                    return;
+                }
+                handled = true;
+                setTimeout(function () {
+                    handled = false;
+                }, 400);
+                handler();
+            }
+
+            el.addEventListener('click', run);
+            el.addEventListener('touchend', function (e) {
+                e.preventDefault();
+                run();
+            }, { passive: false });
+        }
+
         /* ── Boot ──────────────────────────────────────────── */
 
         document.addEventListener('DOMContentLoaded', function () {
             setButtonsEnabled(false);
-
-            setTimeout(function () {
-                if (!state.engineReady) {
-                    setButtonsEnabled(true);
-                }
-            }, 10000);
 
             var saved = readLang();
             if (saved === 'es') {
@@ -544,11 +595,11 @@
                 updateUI('en');
             }
 
-            document.getElementById('btn-es').addEventListener('click', setSpanish);
-            document.getElementById('btn-en').addEventListener('click', setEnglish);
+            bindTap(document.getElementById('btn-es'), setSpanish);
+            bindTap(document.getElementById('btn-en'), setEnglish);
 
             document.querySelectorAll('.tab-btn[data-tab]').forEach(function (btn) {
-                btn.addEventListener('click', function () {
+                bindTap(btn, function () {
                     openTab(btn.getAttribute('data-tab'));
                 });
             });
