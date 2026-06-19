@@ -61,6 +61,11 @@
             color: var(--white);
         }
 
+        .lang-btn:disabled {
+            opacity: 0.45;
+            cursor: wait;
+        }
+
         /* Tab Buttons Navigation */
         .tabs {
             display: flex;
@@ -212,8 +217,8 @@
         
         <!-- Language Switcher -->
         <div class="header-controls notranslate">
-            <button class="lang-btn active" type="button" id="btn-en" aria-label="Switch to English">EN</button>
-            <button class="lang-btn" type="button" id="btn-es" aria-label="Cambiar a Español">ES</button>
+            <button class="lang-btn active" type="button" id="btn-en" disabled aria-label="Switch to English">EN</button>
+            <button class="lang-btn" type="button" id="btn-es" disabled aria-label="Cambiar a Español">ES</button>
         </div>
 
         <!-- Tab Navigation -->
@@ -252,8 +257,15 @@
             var MENU_IDS = ['portals-menu', 'palma-menu'];
             var translatedMenus = new Set();
             var bannerHidden = false;
-            var menuTranslateTimer = null;
             var menuRetranslateOnce = false;
+            var widgetReady = false;
+            var wantsSpanish = false;
+            var confirmTimer = null;
+
+            function setButtonsReady(ready) {
+                document.getElementById('btn-es').disabled = !ready;
+                document.getElementById('btn-en').disabled = !ready;
+            }
 
             function getLang() {
                 try {
@@ -371,49 +383,94 @@
                 }, 8000);
             }
 
-            function translateTo(lang, attempt) {
-                attempt = attempt || 0;
-                var maxAttempts = 60;
+            function runSpanishTranslation() {
+                wantsSpanish = true;
 
-                if (lang === 'en') {
+                if (!widgetReady) {
                     return;
                 }
 
                 var select = getSelect();
                 if (!select) {
-                    if (attempt < maxAttempts) {
-                        setTimeout(function () {
-                            translateTo(lang, attempt + 1);
-                        }, 200);
-                    }
                     return;
                 }
 
-                if (select.value === lang && isPageTranslated()) {
+                if (select.value === 'es' && isPageTranslated()) {
                     hideBannerOnce();
                     return;
                 }
 
-                select.value = lang;
+                select.value = 'es';
                 fireSelectChange(select);
                 watchForTranslation();
+                startConfirmLoop();
+            }
+
+            function startConfirmLoop() {
+                clearTimeout(confirmTimer);
+                var attempts = 0;
+
+                function tick() {
+                    if (!wantsSpanish) {
+                        return;
+                    }
+
+                    if (isPageTranslated()) {
+                        hideBannerOnce();
+                        return;
+                    }
+
+                    if (attempts >= 20) {
+                        return;
+                    }
+
+                    attempts += 1;
+                    var select = getSelect();
+                    if (select && select.value !== 'es') {
+                        select.value = 'es';
+                        fireSelectChange(select);
+                    }
+
+                    confirmTimer = setTimeout(tick, 500);
+                }
+
+                confirmTimer = setTimeout(tick, 500);
             }
 
             function scheduleMenuRetranslate() {
-                if (menuRetranslateOnce || getLang() !== 'es' || !isPageTranslated()) {
+                if (menuRetranslateOnce || !wantsSpanish || !isPageTranslated()) {
                     return;
                 }
 
                 menuRetranslateOnce = true;
-                clearTimeout(menuTranslateTimer);
-                menuTranslateTimer = setTimeout(function () {
+                setTimeout(function () {
                     var select = getSelect();
                     if (select) {
                         select.value = 'es';
                         fireSelectChange(select);
                     }
                     hideBannerOnce();
-                }, 1500);
+                }, 1200);
+            }
+
+            function watchMenus() {
+                MENU_IDS.forEach(function (menuId) {
+                    whenMenuReady(menuId, function () {
+                        if (!translatedMenus.has(menuId)) {
+                            translatedMenus.add(menuId);
+                            scheduleMenuRetranslate();
+                        }
+                    });
+                });
+            }
+
+            function translateTo(lang) {
+                runSpanishTranslation();
+            }
+
+            function applySpanish() {
+                runSpanishTranslation();
+                watchMenus();
             }
 
             function whenMenuReady(menuId, callback, attempt) {
@@ -433,19 +490,6 @@
                         whenMenuReady(menuId, callback, attempt + 1);
                     }, 500);
                 }
-            }
-
-            function applySpanish() {
-                translateTo('es');
-
-                MENU_IDS.forEach(function (menuId) {
-                    whenMenuReady(menuId, function () {
-                        if (!translatedMenus.has(menuId)) {
-                            translatedMenus.add(menuId);
-                            scheduleMenuRetranslate();
-                        }
-                    });
-                });
             }
 
             function updateUI(lang) {
@@ -472,6 +516,7 @@
                 setCookie(lang);
 
                 if (lang === 'en') {
+                    wantsSpanish = false;
                     translatedMenus.clear();
                     window.location.reload();
                     return;
@@ -514,16 +559,29 @@
                     includedLanguages: 'en,es'
                 }, 'google_translate_element');
 
+                widgetReady = true;
+                setButtonsReady(true);
+
                 if (getLang() !== 'en') {
+                    wantsSpanish = true;
                     updateUI(getLang());
                     setCookie('es');
+                    applySpanish();
+                } else if (wantsSpanish) {
                     applySpanish();
                 }
             };
 
             document.addEventListener('DOMContentLoaded', function () {
+                setTimeout(function () {
+                    if (!widgetReady) {
+                        setButtonsReady(true);
+                    }
+                }, 12000);
+
                 var lang = getLang();
                 if (lang !== 'en') {
+                    wantsSpanish = true;
                     updateUI(lang);
                     setCookie(lang);
                 }
